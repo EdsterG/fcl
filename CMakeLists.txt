@@ -82,8 +82,19 @@ endif()
 # endif()
 
 
-find_package(Boost COMPONENTS thread date_time filesystem system unit_test_framework REQUIRED)
+find_package(Boost COMPONENTS python thread date_time filesystem system unit_test_framework REQUIRED)
+SET(Boost_USE_STATIC_LIBS OFF)
+SET(Boost_USE_MULTITHREADED ON)
+SET(Boost_USE_STATIC_RUNTIME OFF)
 include_directories(${Boost_INCLUDE_DIR})
+
+# Find Python
+FIND_PACKAGE(PythonLibs)
+IF(PYTHONLIBS_FOUND)
+  INCLUDE_DIRECTORIES("${PYTHON_INCLUDE_DIRS}")
+ELSE()
+  MESSAGE(FATAL_ERROR "Unable to find PythonLibs.")
+ENDIF()
 
 if(MSVC)
     add_definitions(-DBOOST_ALL_NO_LIB)
@@ -133,3 +144,9 @@ install(FILES "${pkg_conf_file}" DESTINATION lib/pkgconfig/ COMPONENT pkgconfig)
 
 enable_testing()
 add_subdirectory(test)
+
+# Define the wrapper library that wraps our library
+add_library( fclpy SHARED fclpy.cpp )
+target_link_libraries( fclpy ${Boost_LIBRARIES} fcl )
+# don't prepend wrapper library name with lib
+set_target_properties( fclpy PROPERTIES PREFIX "" )

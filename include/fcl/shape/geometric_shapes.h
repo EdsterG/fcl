@@ -41,6 +41,7 @@
 #include "fcl/collision_object.h"
 #include "fcl/math/vec_3f.h"
 #include <string.h>
+#include <vector>
 
 namespace fcl
 {
@@ -266,24 +267,26 @@ class Convex : public ShapeBase
 {
 public:
   /// @brief Constructing a convex, providing normal and offset of each polytype surface, and the points and shape topology information 
-  Convex(Vec3f* plane_normals_,
-         FCL_REAL* plane_dis_,
+  Convex(//Vec3f* plane_normals_,
+         std::vector<Vec3f>& plane_normals_,
          int num_planes_,
-         Vec3f* points_,
+         std::vector<Vec3f>& points_,
          int num_points_,
-         int* polygons_) : ShapeBase()
+         std::vector<int> polygons_) : ShapeBase()
   {
     plane_normals = plane_normals_;
-    plane_dis = plane_dis_;
     num_planes = num_planes_;
-    points = points_;
-    polygons = polygons_;
-    edges = NULL;
+    vec_points = points_;
+    points = &vec_points[0]; //Left for backwards compatibility
+    num_points = num_points_;
+    vec_polygons = polygons_;
+    polygons = &vec_polygons[0]; //Left for backwards compatibility
+    edges = NULL; 
 
     Vec3f sum;
     for(int i = 0; i < num_points; ++i)
     {
-      sum += points[i];
+      sum += vec_points[i];
     }
 
     center = sum * (FCL_REAL)(1.0 / num_points);
@@ -295,9 +298,9 @@ public:
   Convex(const Convex& other) : ShapeBase(other)
   {
     plane_normals = other.plane_normals;
-    plane_dis = other.plane_dis;
     num_planes = other.num_planes;
     points = other.points;
+    num_points = other.num_points;
     polygons = other.polygons;
     edges = new Edge[other.num_edges];
     memcpy(edges, other.edges, sizeof(Edge) * num_edges);
@@ -315,14 +318,15 @@ public:
   NODE_TYPE getNodeType() const { return GEOM_CONVEX; }
 
   
-  Vec3f* plane_normals;
-  FCL_REAL* plane_dis;
+  std::vector<Vec3f> plane_normals; //UNUSED!
 
   /// @brief An array of indices to the points of each polygon, it should be the number of vertices
   /// followed by that amount of indices to "points" in counter clockwise order
-  int* polygons;
+  int* polygons; //Left for backwards compatibility
+  std::vector<int> vec_polygons;
 
-  Vec3f* points;
+  Vec3f* points; //Left for backwards compatibility
+  std::vector<Vec3f> vec_points;
   int num_points;
   int num_edges;
   int num_planes;
@@ -332,7 +336,7 @@ public:
     int first, second;
   };
 
-  Edge* edges;
+  Edge* edges; //UNUSED!
 
   /// @brief center of the convex polytope, this is used for collision: center is guaranteed in the internal of the polytope (as it is convex) 
   Vec3f center;
@@ -349,8 +353,8 @@ public:
                          1/120.0, 1/60.0, 1/120.0,
                          1/120.0, 1/120.0, 1/60.0);
 
-    int* points_in_poly = polygons;
-    int* index = polygons + 1;
+    const int* points_in_poly = &polygons[0];
+    const int* index = &polygons[0] + 1;
     for(int i = 0; i < num_planes; ++i)
     {
       Vec3f plane_center;
@@ -389,8 +393,8 @@ public:
   {
     Vec3f com;
     FCL_REAL vol = 0;
-    int* points_in_poly = polygons;
-    int* index = polygons + 1;
+    const int* points_in_poly = &polygons[0];
+    const int* index = &polygons[0] + 1;
     for(int i = 0; i < num_planes; ++i)
     {
       Vec3f plane_center;
@@ -423,8 +427,8 @@ public:
   FCL_REAL computeVolume() const
   {
     FCL_REAL vol = 0;
-    int* points_in_poly = polygons;
-    int* index = polygons + 1;
+    const int* points_in_poly = &polygons[0];
+    const int* index = &polygons[0] + 1;
     for(int i = 0; i < num_planes; ++i)
     {
       Vec3f plane_center;
