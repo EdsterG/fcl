@@ -89,9 +89,11 @@ typename HierarchyTree<BV>::NodeType* HierarchyTree<BV>::insert(const BV& bv, vo
 template<typename BV>
 void HierarchyTree<BV>::remove(NodeType* leaf)
 {
-  removeLeaf(leaf);
-  deleteNode(leaf);
-  --n_leaves;
+  if (leaf) {
+    removeLeaf(leaf);
+    deleteNode(leaf);
+    --n_leaves;
+  }
 }
 
 template<typename BV>
