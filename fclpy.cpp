@@ -327,7 +327,7 @@ public:
     // return (char*)user_data;
 };
 
-bool compareContacts(const Contact& c1,const Contact& c2) { return c1.penetration_depth > c2.penetration_depth; } //Decending order!!
+bool compareContacts(const Contact& c1,const Contact& c2) { return c1.penetration_depth > c2.penetration_depth; } //Decending order (Assuming penetration depth is a positive number)!!
 
 class PyDynamicAABBTreeCollisionManager {
 public:
