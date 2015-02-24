@@ -413,15 +413,17 @@ public:
   }
 
   /// @brief perform collision test for the objects belonging to the manager (i.e., N^2 self collision)
-  void Collide(){
+  py::object Collide(bool sort=true){
     CollisionData cdata;
     cdata.request.num_max_contacts = 100000;
     cdata.request.enable_contact = true;
     m_cm->collide(&cdata, defaultCollisionFunction);
-    
     std::vector<Contact> contacts;
     cdata.result.getContacts(contacts);
-    std::sort(contacts.begin(), contacts.end(), compareContacts);
+    if (cdata.result.numContacts()>0){
+      std::sort(contacts.begin(), contacts.end(), compareContacts);
+    }
+    return toPyList<Contact,PyContact>(contacts);
   }
 
   double BodyVsAllDistance(py::object py_obj){
@@ -472,6 +474,7 @@ PyDynamicAABBTreeCollisionManager createCollisionManager() {
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(BodyVsAllCollideDefaults, PyDynamicAABBTreeCollisionManager::BodyVsAllCollide, 1, 2);
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(CmVsCmCollideDefaults, PyDynamicAABBTreeCollisionManager::CmVsCmCollide, 1, 2);
+BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(CollideDefaults, PyDynamicAABBTreeCollisionManager::Collide, 0, 1);
 BOOST_PYTHON_FUNCTION_OVERLOADS(createBoxDefaults, createBox, 1, 2);
 BOOST_PYTHON_FUNCTION_OVERLOADS(createCylDefaults, createCylinder, 1, 2);
 BOOST_PYTHON_FUNCTION_OVERLOADS(createSphDefaults, createSphere, 1, 2);
@@ -533,7 +536,7 @@ BOOST_PYTHON_MODULE(fclpy) {
     .def("UnregisterObjects", &PyDynamicAABBTreeCollisionManager::UnregisterObjects)
     .def("UnregisterObject", &PyDynamicAABBTreeCollisionManager::UnregisterObject)
     .def("GetObjects", &PyDynamicAABBTreeCollisionManager::GetObjects)
-    .def("Collide", &PyDynamicAABBTreeCollisionManager::Collide)
+    .def("Collide", &PyDynamicAABBTreeCollisionManager::Collide, CollideDefaults())
     .def("Distance", &PyDynamicAABBTreeCollisionManager::Distance)
     .def("BodyVsAllCollide", &PyDynamicAABBTreeCollisionManager::BodyVsAllCollide, BodyVsAllCollideDefaults())
     .def("CmVsCmCollide", &PyDynamicAABBTreeCollisionManager::CmVsCmCollide, CmVsCmCollideDefaults())
