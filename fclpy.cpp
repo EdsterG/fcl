@@ -149,8 +149,8 @@ public:
 //Collision objects
 class PyCollisionObject {
 public:
-  CollisionObjectRLL* m_obj;
-  PyCollisionObject(CollisionObjectRLL* obj) : m_obj(obj) {}
+  boost::shared_ptr<CollisionObjectRLL> m_obj;
+  PyCollisionObject(boost::shared_ptr<CollisionObjectRLL> obj) : m_obj(obj) {}
   NODE_TYPE GetNodeType() {
     return m_obj->getNodeType();
   }
@@ -163,13 +163,11 @@ public:
   py::numeric::array GetTransform() {return (py::numeric::array)Transform3fToNdarray2(m_obj->getTransform()).attr("dot")(m_obj->getInvTransformOffset());}
   void SetName(py::str py_name) {m_obj->setName(py::extract<char*>(py_name));}
   py::str GetName() {return py::str(m_obj->getName());}
-  //void Destroy() {if (m_obj) {delete m_obj; m_obj=NULL;}}
-  void Destroy() {delete m_obj;}
 };
 
 class PyCollisionBox: public PyCollisionObject {
 public:
-  PyCollisionBox(CollisionObjectRLL* box): PyCollisionObject(box) {}
+  PyCollisionBox(boost::shared_ptr<CollisionObjectRLL> box): PyCollisionObject(box) {}
   double GetX() {
     return ((Box*)(m_obj->collisionGeometry().get()))->side[0];
   }
@@ -183,7 +181,7 @@ public:
 
 class PyCollisionCylinder: public PyCollisionObject {
 public:
-  PyCollisionCylinder(CollisionObjectRLL* cyl): PyCollisionObject(cyl) {}
+  PyCollisionCylinder(boost::shared_ptr<CollisionObjectRLL> cyl): PyCollisionObject(cyl) {}
   double GetRadius() {
     return ((Cylinder*)(m_obj->collisionGeometry().get()))->radius;
   }
@@ -194,7 +192,7 @@ public:
 
 class PyCollisionSphere: public PyCollisionObject {
 public:
-  PyCollisionSphere(CollisionObjectRLL* sph): PyCollisionObject(sph) {}
+  PyCollisionSphere(boost::shared_ptr<CollisionObjectRLL> sph): PyCollisionObject(sph) {}
   double GetRadius() {
     return ((Sphere*)(m_obj->collisionGeometry().get()))->radius;
   }
@@ -202,7 +200,7 @@ public:
 
 class PyCollisionMesh: public PyCollisionObject {
 public:
-  PyCollisionMesh(CollisionObjectRLL* mesh): PyCollisionObject(mesh) {}
+  PyCollisionMesh(boost::shared_ptr<CollisionObjectRLL> mesh): PyCollisionObject(mesh) {}
   py::object GetPoints() {
     const std::vector<Vec3f>* cpp_points = &(((Convex*)(m_obj->collisionGeometry().get()))->vec_points);
     py::list py_points;
@@ -232,17 +230,20 @@ public:
 
 PyCollisionBox createBox(py::object& py_dims, py::numeric::array py_t_offset=(py::numeric::array)np_mod.attr("eye")(4)) {
   Box* box = new Box(py::extract<double>(py_dims[0]),py::extract<double>(py_dims[1]),py::extract<double>(py_dims[2]));
-  return PyCollisionBox(new CollisionObjectRLL(boost::shared_ptr<CollisionGeometry>(box), py_t_offset));
+  CollisionObjectRLL* obj = new CollisionObjectRLL(boost::shared_ptr<CollisionGeometry>(box), py_t_offset);
+  return PyCollisionBox(boost::shared_ptr<CollisionObjectRLL>(obj));
 }
 
 PyCollisionCylinder createCylinder(py::object& py_dims, py::numeric::array py_t_offset=(py::numeric::array)np_mod.attr("eye")(4)) {
   Cylinder* cyl = new Cylinder(py::extract<double>(py_dims[0]),py::extract<double>(py_dims[1]));
-  return PyCollisionCylinder(new CollisionObjectRLL(boost::shared_ptr<CollisionGeometry>(cyl), py_t_offset));
+  CollisionObjectRLL* obj = new CollisionObjectRLL(boost::shared_ptr<CollisionGeometry>(cyl), py_t_offset);
+  return PyCollisionCylinder(boost::shared_ptr<CollisionObjectRLL>(obj));
 }
 
 PyCollisionSphere createSphere(double py_r, py::numeric::array py_t_offset=(py::numeric::array)np_mod.attr("eye")(4)) {
   Sphere* sph = new Sphere(py_r);
-  return PyCollisionSphere(new CollisionObjectRLL(boost::shared_ptr<CollisionGeometry>(sph), py_t_offset));
+  CollisionObjectRLL* obj = new CollisionObjectRLL(boost::shared_ptr<CollisionGeometry>(sph), py_t_offset);
+  return PyCollisionSphere(boost::shared_ptr<CollisionObjectRLL>(obj));
 }
 
 PyCollisionMesh createTriMesh(py::object& py_points, py::object& py_indices, py::numeric::array py_t_offset=(py::numeric::array)np_mod.attr("eye")(4)){
@@ -272,7 +273,8 @@ PyCollisionMesh createTriMesh(py::object& py_points, py::object& py_indices, py:
   }
 
   Convex* mesh = new Convex(plane_normals,num_planes,cpp_points,num_points,polygons);
-  return PyCollisionMesh(new CollisionObjectRLL(boost::shared_ptr<CollisionGeometry>(mesh), py_t_offset));
+  CollisionObjectRLL* obj = new CollisionObjectRLL(boost::shared_ptr<CollisionGeometry>(mesh), py_t_offset);
+  return PyCollisionMesh(boost::shared_ptr<CollisionObjectRLL>(obj));
 }
 
 
@@ -331,53 +333,55 @@ bool compareContacts(const Contact& c1,const Contact& c2) { return c1.penetratio
 
 class PyDynamicAABBTreeCollisionManager {
 public:
-  PyDynamicAABBTreeCollisionManager(DynamicAABBTreeCollisionManager* cm) : m_cm(cm) {}
+  PyDynamicAABBTreeCollisionManager(boost::shared_ptr<DynamicAABBTreeCollisionManager> cm) : m_cm(cm) {}
   void RegisterObjects(const py::list py_objs) {
     int n_objs = boost::python::extract<int>(py_objs.attr("__len__")());
     if (n_objs > 0) {
       std::vector<CollisionObject*> cpp_objs(n_objs);
       for (int i=0; i < n_objs; ++i) {
         PyCollisionObject* cpp_obj = py::extract<PyCollisionObject*>(py_objs[i]);
-        cpp_objs[i] = cpp_obj->m_obj;
+        cpp_objs[i] = cpp_obj->m_obj.get();
+        m_objs.push_back(cpp_obj->m_obj);
       }
       m_cm->registerObjects(cpp_objs);
     }
   }
   void RegisterObject(py::object py_obj){
     PyCollisionObject* cpp_obj = py::extract<PyCollisionObject*>(py_obj);
-    m_cm->registerObject(cpp_obj->m_obj);
+    m_cm->registerObject(cpp_obj->m_obj.get());
+    m_objs.push_back(cpp_obj->m_obj);
   }
   void UnregisterObjects(const py::list py_objs) {
     int n_objs = boost::python::extract<int>(py_objs.attr("__len__")());
     for (int i=0; i < n_objs; ++i) {
       PyCollisionObject* cpp_obj = py::extract<PyCollisionObject*>(py_objs[i]);
-      m_cm->unregisterObject(cpp_obj->m_obj);
+      m_cm->unregisterObject(cpp_obj->m_obj.get());
+      m_objs.erase(std::remove(m_objs.begin(), m_objs.end(), cpp_obj->m_obj), m_objs.end());
     }
   }
   void UnregisterObject(py::object py_obj) {
     PyCollisionObject* cpp_obj = py::extract<PyCollisionObject*>(py_obj);
-    m_cm->unregisterObject(cpp_obj->m_obj);
+    m_cm->unregisterObject(cpp_obj->m_obj.get());
+    m_objs.erase(std::remove(m_objs.begin(), m_objs.end(), cpp_obj->m_obj), m_objs.end());
   }
   py::list GetObjects() {
     int n_objs = m_cm->size();
     py::list py_objs;
     if (n_objs > 0) {
-      std::vector<CollisionObject*> cpp_objs; 
-      m_cm->getObjects(cpp_objs);
       for (int i=0; i < n_objs; ++i) {
-          switch (cpp_objs[i]->getNodeType()) {
-            case GEOM_BOX:
-              py_objs.append(PyCollisionBox((CollisionObjectRLL*)(cpp_objs[i])));
-              break;
-            case GEOM_CYLINDER:
-              py_objs.append(PyCollisionCylinder((CollisionObjectRLL*)(cpp_objs[i])));
-              break;
-            case GEOM_CONVEX:
-              py_objs.append(PyCollisionMesh((CollisionObjectRLL*)(cpp_objs[i])));
-              break;
-            default:
-              std::cout << "Unknown geometry type!" << std::endl;
-          }
+        switch (m_objs.at(i)->getNodeType()) {
+          case GEOM_BOX:
+            py_objs.append(PyCollisionBox(m_objs.at(i)));
+            break;
+          case GEOM_CYLINDER:
+            py_objs.append(PyCollisionCylinder(m_objs.at(i)));
+            break;
+          case GEOM_CONVEX:
+            py_objs.append(PyCollisionMesh(m_objs.at(i)));
+            break;
+          default:
+            std::cout << "Unknown geometry type!" << std::endl;
+        }  
       }
     }
     return py_objs;
@@ -388,7 +392,7 @@ public:
     CollisionData cdata;
     cdata.request.num_max_contacts = 100000;
     cdata.request.enable_contact = true;
-    m_cm->collide(cpp_obj->m_obj, &cdata, defaultCollisionFunction);
+    m_cm->collide(cpp_obj->m_obj.get(), &cdata, defaultCollisionFunction);
     std::vector<Contact> contacts;
     cdata.result.getContacts(contacts);
     if (cdata.result.numContacts()>0){
@@ -402,7 +406,7 @@ public:
     CollisionData cdata;
     cdata.request.num_max_contacts = 100000;
     cdata.request.enable_contact = true;
-    m_cm->collide(cpp_cm->m_cm, &cdata, defaultCollisionFunction);
+    m_cm->collide(cpp_cm->m_cm.get(), &cdata, defaultCollisionFunction);
     std::vector<Contact> contacts;
     cdata.result.getContacts(contacts);
     if (cdata.result.numContacts()>0){
@@ -429,7 +433,7 @@ public:
   double BodyVsAllDistance(py::object py_obj){
     PyCollisionObject* cpp_obj = py::extract<PyCollisionObject*>(py_obj);
     DistanceData cdata;
-    m_cm->distance(cpp_obj->m_obj, &cdata, defaultDistanceFunction);
+    m_cm->distance(cpp_obj->m_obj.get(), &cdata, defaultDistanceFunction);
     return cdata.result.min_distance;
   }
   /// @brief perform distance test for the objects belonging to the manager (i.e., N^2 self distance)
@@ -449,8 +453,6 @@ public:
     m_cm->clear();
   }
 
-  //void Destroy() {if (m_cm) {delete m_cm; m_cm=NULL;}}
-  void Destroy() {delete m_cm;}
   /*
   /// @brief perform collision test between one object and all the objects belonging to the manager
   void collide(CollisionObject* obj, void* cdata, CollisionCallBack callback) const;
@@ -465,11 +467,13 @@ public:
   void distance(BroadPhaseCollisionManager* other_manager_, void* cdata, DistanceCallBack callback) const;
   */
 private:
-  DynamicAABBTreeCollisionManager* m_cm;
+  boost::shared_ptr<DynamicAABBTreeCollisionManager> m_cm;
+  std::vector< boost::shared_ptr<CollisionObjectRLL> > m_objs;
 };
 
 PyDynamicAABBTreeCollisionManager createCollisionManager() {
-  return PyDynamicAABBTreeCollisionManager(new DynamicAABBTreeCollisionManager());
+  DynamicAABBTreeCollisionManager* cm = new DynamicAABBTreeCollisionManager();
+  return PyDynamicAABBTreeCollisionManager(boost::shared_ptr<DynamicAABBTreeCollisionManager>(cm));
 }
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(BodyVsAllCollideDefaults, PyDynamicAABBTreeCollisionManager::BodyVsAllCollide, 1, 2);
@@ -490,7 +494,6 @@ BOOST_PYTHON_MODULE(fclpy) {
     .def("SetTransform", &PyCollisionObject::SetTransform)
     .def("SetName", &PyCollisionObject::SetName)
     .def("GetName", &PyCollisionObject::GetName)
-    .def("Destroy", &PyCollisionObject::Destroy)
     ;
   py::class_<PyCollisionBox, py::bases<PyCollisionObject> >("PyCollisionBox", py::no_init)
     .def("GetX", &PyCollisionBox::GetX)
@@ -543,7 +546,6 @@ BOOST_PYTHON_MODULE(fclpy) {
     .def("BodyVsAllDistance", &PyDynamicAABBTreeCollisionManager::BodyVsAllDistance)
     .def("Update", &PyDynamicAABBTreeCollisionManager::Update)
     .def("Clear", &PyDynamicAABBTreeCollisionManager::Clear)
-    .def("Destroy", &PyDynamicAABBTreeCollisionManager::Destroy)
     ;
   py::def("createCollisionManager", &createCollisionManager);
 
