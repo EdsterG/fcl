@@ -1,6 +1,7 @@
 #include <boost/python.hpp>
 #include <boost/foreach.hpp>
 #include <boost/shared_array.hpp>
+#include <boost/assert.hpp>
 #include "fcl/shape/geometric_shapes.h"
 #include "fcl/math/vec_3f.h"
 #include "fcl/math/matrix_3f.h"
@@ -26,28 +27,105 @@ py::list toPyList(const std::vector<T>& in) {
     out.append(PyT(elem));
   }
   return out;
+};
+
+void normalize_py_t_openrave_style(py::numeric::array& py_t) {
+  double row_0[3] = {py::extract<double>(py_t[0][0]), py::extract<double>(py_t[0][1]), py::extract<double>(py_t[0][2])};
+  double row_1[3] = {py::extract<double>(py_t[1][0]), py::extract<double>(py_t[1][1]), py::extract<double>(py_t[1][2])};
+  double row_2[3] = {py::extract<double>(py_t[2][0]), py::extract<double>(py_t[2][1]), py::extract<double>(py_t[2][2])};
+
+  // Couldn't find how OpenRave normalizes rotation matrices, so this is a hack that works. 
+  // Convert to quaternion
+  double quat[4];
+  double tr = row_0[0] + row_1[1] + row_2[2];
+  if (tr >= 0) {
+    quat[0] = tr + 1;
+    quat[1] = (row_2[1] - row_1[2]);
+    quat[2] = (row_0[2] - row_2[0]);
+    quat[3] = (row_1[0] - row_0[1]);
+  }
+  else {
+  // find the largest diagonal element and jump to the appropriate case
+    if (row_1[1] > row_0[0]) {
+      if (row_2[2] > row_1[1]) {
+        quat[3] = (row_2[2] - (row_0[0] + row_1[1])) + 1;
+        quat[1] = (row_2[0] + row_0[2]);
+        quat[2] = (row_1[2] + row_2[1]);
+        quat[0] = (row_1[0] - row_0[1]);
+      }
+      else {
+        quat[2] = (row_1[1] - (row_2[2] + row_0[0])) + 1;
+        quat[3] = (row_1[2] + row_2[1]);
+        quat[1] = (row_0[1] + row_1[0]);
+        quat[0] = (row_0[2] - row_2[0]);
+      }
+    }
+    else if (row_2[2] > row_0[0]) {
+      quat[3] = (row_2[2] - (row_0[0] + row_1[1])) + 1;
+      quat[1] = (row_2[0] + row_0[2]);
+      quat[2] = (row_1[2] + row_2[1]);
+      quat[0] = (row_1[0] - row_0[1]);
+    }
+    else {
+      quat[1] = (row_0[0] - (row_1[1] + row_2[2])) + 1;
+      quat[2] = (row_0[1] + row_1[0]);
+      quat[3] = (row_2[0] + row_0[2]);
+      quat[0] = (row_2[1] - row_1[2]);
+    }
+  }
+
+  // Normalize quaternion
+  double lengthsqr = quat[0]*quat[0] + quat[1]*quat[1] + quat[2]*quat[2] + quat[3]*quat[3];
+  if(( lengthsqr < double(1)-std::numeric_limits<double>::epsilon()) || ( lengthsqr > double(1)+std::numeric_limits<double>::epsilon()) ) {
+    BOOST_ASSERT( lengthsqr > 0 );
+    // yes it is faster to multiply by (1/length), but with 4 divides we gain precision (which is more important in robotics)
+    double length = sqrt(lengthsqr);
+    quat[0] /= length; quat[1] /= length; quat[2] /= length; quat[3] /= length;
+  }
+
+  // should normalize the quaternion first
+  double length2 = quat[0]*quat[0] + quat[1]*quat[1] + quat[2]*quat[2] + quat[3]*quat[3];
+  BOOST_ASSERT(length2 > 0.99 && length2 < 1.01); // make sure it is at least close
+  double ilength2 = 2/length2;
+
+  double qq1 = ilength2*quat[1]*quat[1];
+  double qq2 = ilength2*quat[2]*quat[2];
+  double qq3 = ilength2*quat[3]*quat[3];
+  row_0[0] = 1 - qq2 - qq3;
+  row_0[1] = ilength2*(quat[1]*quat[2] - quat[0]*quat[3]);
+  row_0[2] = ilength2*(quat[1]*quat[3] + quat[0]*quat[2]);
+  row_1[0] = ilength2*(quat[1]*quat[2] + quat[0]*quat[3]);
+  row_1[1] = 1 - qq1 - qq3;
+  row_1[2] = ilength2*(quat[2]*quat[3] - quat[0]*quat[1]);
+  row_2[0] = ilength2*(quat[1]*quat[3] - quat[0]*quat[2]);
+  row_2[1] = ilength2*(quat[2]*quat[3] + quat[0]*quat[1]);
+  row_2[2] = 1 - qq1 - qq2;
+
+  py_t[0][0] = row_0[0]; py_t[0][1] = row_0[1]; py_t[0][2] = row_0[2];
+  py_t[1][0] = row_1[0]; py_t[1][1] = row_1[1]; py_t[1][2] = row_1[2];
+  py_t[2][0] = row_2[0]; py_t[2][1] = row_2[1]; py_t[2][2] = row_2[2];
 }
 
 struct ObjectInfo {
   std::string _name;
-  py::numeric::array _t;
-  py::numeric::array _t_inv;
-  ObjectInfo(py::numeric::array t) : _t((py::numeric::array)t.attr("copy")()), 
-                                     _t_inv((py::numeric::array)np_mod.attr("linalg").attr("inv")(t))
-                                     {}
+  py::numeric::array _t_offset;  
+  py::numeric::array _transform;
+  ObjectInfo(py::numeric::array t_offset) : _t_offset((py::numeric::array)t_offset.attr("copy")()),                                    
+                                     _transform(np_mod.attr("eye")(4))
+                                     {
+                                      normalize_py_t_openrave_style(_t_offset);
+                                     }
 };
 
 void copyTransformPytoCpp(Transform3f* cpp_t, py::numeric::array& py_t) {
-  Vec3f R_row_1 = Vec3f(py::extract<double>(py_t[0][0]),py::extract<double>(py_t[0][1]),py::extract<double>(py_t[0][2]));
-  R_row_1 = R_row_1.normalize();
-  Vec3f R_row_2 = Vec3f(py::extract<double>(py_t[1][0]),py::extract<double>(py_t[1][1]),py::extract<double>(py_t[1][2]));
-  R_row_2 = R_row_2.normalize();
-  Vec3f R_row_3 = Vec3f(py::extract<double>(py_t[2][0]),py::extract<double>(py_t[2][1]),py::extract<double>(py_t[2][2]));
-  R_row_3 = R_row_3.normalize();
-  Matrix3f R = Matrix3f(R_row_1, R_row_2, R_row_3);
+  Vec3f R_row_0 = Vec3f(py::extract<double>(py_t[0][0]), py::extract<double>(py_t[0][1]), py::extract<double>(py_t[0][2]));
+  Vec3f R_row_1 = Vec3f(py::extract<double>(py_t[1][0]), py::extract<double>(py_t[1][1]), py::extract<double>(py_t[1][2]));
+  Vec3f R_row_2 = Vec3f(py::extract<double>(py_t[2][0]), py::extract<double>(py_t[2][1]), py::extract<double>(py_t[2][2]));
+
+  Matrix3f R = Matrix3f(R_row_0, R_row_1, R_row_2);
   Vec3f T = Vec3f(py::extract<double>(py_t[0][3]),py::extract<double>(py_t[1][3]),py::extract<double>(py_t[2][3]));
   *cpp_t = Transform3f(R,T);
-}
+};
 
 /// @brief Collision data stores the collision request and the result given by collision algorithm. 
 struct CollisionData
@@ -124,8 +202,8 @@ public:
   CollisionObjectRLL(boost::shared_ptr<CollisionGeometry> geom, py::numeric::array& py_t_offset): CollisionObject(geom),
                                                                       obj_info(py_t_offset)
                                                                       { Transform3f temp_t;
-                                                                        copyTransformPytoCpp(&temp_t,obj_info._t);
-                                                                        this->setTransform(temp_t);
+                                                                        copyTransformPytoCpp(&temp_t, obj_info._t_offset);
+                                                                        CollisionObject::setTransform(temp_t);
 
                                                                         //Hack to make sure ObjectInfo can be recovered from Contact objects
                                                                         user_data = (void*)&obj_info;
@@ -138,10 +216,18 @@ public:
     return obj_info._name.c_str();
   }
   const py::numeric::array& getTransformOffset() const{
-    return obj_info._t;
+    return obj_info._t_offset;
   }
-  const py::numeric::array& getInvTransformOffset() const{
-    return obj_info._t_inv;
+  const py::numeric::array& getTransform() const{
+    return obj_info._transform;
+  }
+  void setTransform(const py::numeric::array& py_t){
+    obj_info._transform = (py::numeric::array)(py_t.attr("copy")());
+    normalize_py_t_openrave_style(obj_info._transform);
+    py::numeric::array new_py_t = (py::numeric::array)obj_info._transform.attr("dot")(this->getTransformOffset());
+    Transform3f cpp_t;
+    copyTransformPytoCpp(&cpp_t, new_py_t);
+    CollisionObject::setTransform(cpp_t);
   }
 
 };
@@ -155,12 +241,9 @@ public:
     return m_obj->getNodeType();
   }
   void SetTransform(py::numeric::array& py_t) {
-    py_t = (py::numeric::array)py_t.attr("dot")(m_obj->getTransformOffset());
-    Transform3f cpp_t;
-    copyTransformPytoCpp(&cpp_t,py_t);
-    m_obj->setTransform(cpp_t);
+    m_obj->setTransform(py_t);
   }
-  py::numeric::array GetTransform() {return (py::numeric::array)Transform3fToNdarray2(m_obj->getTransform()).attr("dot")(m_obj->getInvTransformOffset());}
+  py::numeric::array GetTransform() {return (py::numeric::array)m_obj->getTransform().attr("copy")();}
   void SetName(py::str py_name) {m_obj->setName(py::extract<char*>(py_name));}
   py::str GetName() {return py::str(m_obj->getName());}
 };
