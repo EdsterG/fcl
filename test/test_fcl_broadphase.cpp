@@ -1,7 +1,8 @@
 /*
  * Software License Agreement (BSD License)
  *
- *  Copyright (c) 2011, Willow Garage, Inc.
+ *  Copyright (c) 2011-2014, Willow Garage, Inc.
+ *  Copyright (c) 2014-2015, Open Source Robotics Foundation
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -14,7 +15,7 @@
  *     copyright notice, this list of conditions and the following
  *     disclaimer in the documentation and/or other materials provided
  *     with the distribution.
- *   * Neither the name of Willow Garage, Inc. nor the names of its
+ *   * Neither the name of Open Source Robotics Foundation nor the names of its
  *     contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission.
  *
@@ -38,6 +39,7 @@
 #define BOOST_TEST_MODULE "FCL_BROADPHASE"
 #include <boost/test/unit_test.hpp>
 
+#include "fcl/config.h"
 #include "fcl/broadphase/broadphase.h"
 #include "fcl/shape/geometric_shape_to_BVH_model.h"
 #include "fcl/math/transform.h"
@@ -148,13 +150,40 @@ BOOST_AUTO_TEST_CASE(test_core_bf_broad_phase_self_distance)
   broad_phase_self_distance_test(200, 5000);
 }
 
+/// check broad phase collision for empty collision object set and queries
+BOOST_AUTO_TEST_CASE(test_core_bf_broad_phase_collision_empty)
+{
+  broad_phase_collision_test(2000, 0, 0, 10, false, false);
+  broad_phase_collision_test(2000, 0, 1000, 10, false, false);
+  broad_phase_collision_test(2000, 100, 0, 10, false, false);
+
+  broad_phase_collision_test(2000, 0, 0, 10, false, true);
+  broad_phase_collision_test(2000, 0, 1000, 10, false, true);
+  broad_phase_collision_test(2000, 100, 0, 10, false, true);
+
+  broad_phase_collision_test(2000, 0, 0, 10, true, false);
+  broad_phase_collision_test(2000, 0, 1000, 10, true, false);
+  broad_phase_collision_test(2000, 100, 0, 10, true, false);
+
+  broad_phase_collision_test(2000, 0, 0, 10, true, true);
+  broad_phase_collision_test(2000, 0, 1000, 10, true, true);
+  broad_phase_collision_test(2000, 100, 0, 10, true, true);
+}
+
 /// check broad phase collision and self collision, only return collision or not
 BOOST_AUTO_TEST_CASE(test_core_bf_broad_phase_collision_binary)
 {
+#ifdef FCL_BUILD_TYPE_DEBUG
+  broad_phase_collision_test(2000, 10, 100, 1, false);
+  broad_phase_collision_test(2000, 100, 100, 1, false);
+  broad_phase_collision_test(2000, 10, 100, 1, true);
+  broad_phase_collision_test(2000, 100, 100, 1, true);
+#else
   broad_phase_collision_test(2000, 100, 1000, 1, false);
   broad_phase_collision_test(2000, 1000, 1000, 1, false);
   broad_phase_collision_test(2000, 100, 1000, 1, true);
   broad_phase_collision_test(2000, 1000, 1000, 1, true);
+#endif
 }
 
 /// check broad phase collision and self collision, return 10 contacts
@@ -174,24 +203,41 @@ BOOST_AUTO_TEST_CASE(test_core_mesh_bf_broad_phase_update_collision_mesh_binary)
 /// check broad phase update, in mesh, return 10 contacts
 BOOST_AUTO_TEST_CASE(test_core_mesh_bf_broad_phase_update_collision_mesh)
 {
+#ifdef FCL_BUILD_TYPE_DEBUG
+  broad_phase_update_collision_test(200, 10, 100, 10, false, true);
+  broad_phase_update_collision_test(200, 100, 100, 10, false, true);
+#else
   broad_phase_update_collision_test(2000, 100, 1000, 10, false, true);
   broad_phase_update_collision_test(2000, 1000, 1000, 10, false, true);
+#endif
 }
 
 /// check broad phase update, in mesh, exhaustive
 BOOST_AUTO_TEST_CASE(test_core_mesh_bf_broad_phase_update_collision_mesh_exhaustive)
 {
+#ifdef FCL_BUILD_TYPE_DEBUG
+  broad_phase_update_collision_test(2000, 10, 100, 1, true, true);
+  broad_phase_update_collision_test(2000, 100, 100, 1, true, true);
+#else
   broad_phase_update_collision_test(2000, 100, 1000, 1, true, true);
   broad_phase_update_collision_test(2000, 1000, 1000, 1, true, true);
+#endif
 }
 
 /// check broad phase distance
 BOOST_AUTO_TEST_CASE(test_core_mesh_bf_broad_phase_distance_mesh)
 {
+#ifdef FCL_BUILD_TYPE_DEBUG
+  broad_phase_distance_test(200, 10, 10, true);
+  broad_phase_distance_test(200, 100, 10, true);
+  broad_phase_distance_test(2000, 10, 10, true);
+  broad_phase_distance_test(2000, 100, 10, true);
+#else
   broad_phase_distance_test(200, 100, 100, true);
   broad_phase_distance_test(200, 1000, 100, true);
   broad_phase_distance_test(2000, 100, 100, true);
   broad_phase_distance_test(2000, 1000, 100, true);
+#endif
 }
 
 /// check broad phase self distance
@@ -205,22 +251,37 @@ BOOST_AUTO_TEST_CASE(test_core_mesh_bf_broad_phase_self_distance_mesh)
 /// check broad phase collision and self collision, return only collision or not, in mesh
 BOOST_AUTO_TEST_CASE(test_core_mesh_bf_broad_phase_collision_mesh_binary)
 {
+#ifdef FCL_BUILD_TYPE_DEBUG
+  broad_phase_collision_test(2000, 10, 100, 1, false, true);
+  broad_phase_collision_test(2000, 100, 100, 1, false, true);
+#else
   broad_phase_collision_test(2000, 100, 1000, 1, false, true);
   broad_phase_collision_test(2000, 1000, 1000, 1, false, true);
+#endif
 }
 
 /// check broad phase collision and self collision, return 10 contacts, in mesh
 BOOST_AUTO_TEST_CASE(test_core_mesh_bf_broad_phase_collision_mesh)
 {
+#ifdef FCL_BUILD_TYPE_DEBUG
+  broad_phase_collision_test(2000, 10, 100, 10, false, true);
+  broad_phase_collision_test(2000, 100, 100, 10, false, true);
+#else
   broad_phase_collision_test(2000, 100, 1000, 10, false, true);
   broad_phase_collision_test(2000, 1000, 1000, 10, false, true);
+#endif
 }
 
 /// check broad phase collision and self collision, exhaustive, in mesh
 BOOST_AUTO_TEST_CASE(test_core_mesh_bf_broad_phase_collision_mesh_exhaustive)
 {
+#ifdef FCL_BUILD_TYPE_DEBUG
+  broad_phase_collision_test(2000, 10, 100, 1, true, true);
+  broad_phase_collision_test(2000, 100, 100, 1, true, true);
+#else
   broad_phase_collision_test(2000, 100, 1000, 1, true, true);
   broad_phase_collision_test(2000, 1000, 1000, 1, true, true);
+#endif
 }
 
 void generateEnvironments(std::vector<CollisionObject*>& env, double env_scale, std::size_t n)

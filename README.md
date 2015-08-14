@@ -1,5 +1,4 @@
-## FCL -- The Flexible Collision Library
-
+## FCL -- The Flexible Collision Library [![Build Status](https://travis-ci.org/flexible-collision-library/fcl.svg)](https://travis-ci.org/flexible-collision-library/fcl)
 
 FCL is a library for performing three types of proximity queries on a pair of geometric models composed of triangles. 
  - Collision detection: detecting whether the two models overlap, and optionally, all of the triangles that overlap.
@@ -47,7 +46,7 @@ std::vector<Triangle> triangles;
 // code to set the vertices and triangles
 ...
 // BVHModel is a template class for mesh geometry, for default OBBRSS template is used
-typedef BVHModel<OBBRSS>* Model;
+typedef BVHModel<OBBRSS> Model;
 Model* model = new Model();
 // add the mesh data into the BVHModel structure
 model->beginModel();

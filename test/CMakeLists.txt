@@ -10,14 +10,17 @@ macro(add_fcl_test test_name)
 endmacro(add_fcl_test)
 
 # configure location of resources
-file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fcl_resources" TEST_RESOURCES_DIR)
+file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fcl_resources" TEST_RESOURCES_SRC_DIR)
+file(TO_NATIVE_PATH "${CMAKE_CURRENT_BINARY_DIR}/fcl_resources" TEST_RESOURCES_BIN_DIR)
 if(WIN32)
     # Correct directory separator for Windows
-    string(REPLACE "\\" "\\\\" TEST_RESOURCES_DIR ${TEST_RESOURCES_DIR})
+    string(REPLACE "\\" "\\\\" TEST_RESOURCES_SRC_DIR ${TEST_RESOURCES_SRC_DIR})
+    string(REPLACE "\\" "\\\\" TEST_RESOURCES_BIN_DIR ${TEST_RESOURCES_BIN_DIR})
 endif(WIN32)
-configure_file("${TEST_RESOURCES_DIR}/config.h.in" "${TEST_RESOURCES_DIR}/config.h")
+configure_file("${TEST_RESOURCES_SRC_DIR}/config.h.in" "${TEST_RESOURCES_BIN_DIR}/config.h")
 
 include_directories(.)
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 add_fcl_test(test_fcl_collision test_fcl_collision.cpp test_fcl_utility.cpp)
 add_fcl_test(test_fcl_distance test_fcl_distance.cpp test_fcl_utility.cpp)
@@ -33,6 +36,7 @@ add_fcl_test(test_fcl_simple test_fcl_simple.cpp)
 add_fcl_test(test_fcl_capsule_box_1 test_fcl_capsule_box_1.cpp)
 add_fcl_test(test_fcl_capsule_box_2 test_fcl_capsule_box_2.cpp)
 #add_fcl_test(test_fcl_global_penetration test_fcl_global_penetration.cpp libsvm/svm.cpp test_fcl_utility.cpp)
+add_fcl_test(test_fcl_bvh_models test_fcl_bvh_models.cpp test_fcl_utility.cpp)
 
 if (FCL_HAVE_OCTOMAP)
   add_fcl_test(test_fcl_octomap test_fcl_octomap.cpp test_fcl_utility.cpp)

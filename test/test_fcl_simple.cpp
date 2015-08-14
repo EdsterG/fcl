@@ -19,7 +19,7 @@ static FCL_REAL epsilon = 1e-6;
 
 static bool approx(FCL_REAL x, FCL_REAL y)
 {
-  return abs(x - y) < epsilon;
+  return std::abs(x - y) < epsilon;
 }
 
 
@@ -93,9 +93,10 @@ BOOST_AUTO_TEST_CASE(Vec_nf_test)
   for(std::size_t i = 0; i < 10; ++i)
     std::cout << sampler.sample() << std::endl;
 
-  SamplerSE2 sampler2(0, 1, -1, 1);
-  for(std::size_t i = 0; i < 10; ++i)
-    std::cout << sampler2.sample() << std::endl;
+  // Disabled broken test lines. Please see #25.
+  // SamplerSE2 sampler2(0, 1, -1, 1);
+  // for(std::size_t i = 0; i < 10; ++i)
+  //   std::cout << sampler2.sample() << std::endl;
 
   SamplerSE3Euler sampler3(Vec3f(0, 0, 0), Vec3f(1, 1, 1));
   for(std::size_t i = 0; i < 10; ++i)
